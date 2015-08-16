@@ -8,18 +8,81 @@ output:
 
 ## Loading and preprocessing the data
 
+Unzip, load and change the date format of the data.
 
+The variables included in this dataset are:
 
+1. steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+2. date: The date on which the measurement was taken in YYYY-MM-DD format
+3. interval: Identifier for the 5-minute interval in which measurement was taken
+
+Show characteristics of the data.
+```{r cache=TRUE}
+setwd("D:/rezuil/Documents/R/Reproducible Research/Assignment 1, week 2")
+unzip("repdata-data-activity.zip")
+data <- read.csv("activity.csv", header=TRUE, sep=",", na.strings="NA")
+data$date <- as.Date(data$date)
+
+head(data)
+str(data)
+summary(data)
+```
 ## What is mean total number of steps taken per day?
+```{r}
+suppressWarnings(library(ggplot2))
+# install.packages("ggplot2")
+daily <- aggregate(steps ~ date, data = data, FUN = sum)
+qplot(steps, data = daily, geom="histogram", xlab = "Daily number of steps", binwidth = 200)
+daily_mean <- mean(daily$steps)
+daily_median <- median(daily$steps)
+```
 
-
+The mean of the total number of steps taken per day is `r format(daily_mean, digits=0,  scientific = FALSE)`  
+The median of the total number of steps taken per day `r daily_median`
 
 ## What is the average daily activity pattern?
 
+The total number of steps is now averaged for each 5-minute interval across all days with valid data. And the interval with the max average of steps is calculated (08:35)
 
+```{r}
+intervals <- aggregate(steps ~ interval, data = data, FUN=mean)
+qplot(interval, steps, data = intervals)
+intervals[which.max(intervals$steps),]
+```
 
 ## Imputing missing values
+Calculate and report the total number of missing values in the dataset (i.e. the
+total number of rows with NAs)
+```{r}
+# In the first part we already saw that there are 2304 missing values in steps, none in other fields
+nrow(data[which(is.na(data$steps)),])
+# install.packages("dplyr")
+suppressWarnings(library(dplyr))
+# now add for the NA's the value of the mean over de the interval / days. The mean is stored in intervals calculated before
+# first merge, dan change the NA value, then remove the merged column
+data2 <- merge(data, intervals, by="interval")
+data2 <- data2 %>%
+         mutate(steps.x = ifelse( is.na(steps.x), steps.y, steps.x))
+data2 <- data2[,c("interval", "steps.x", "date")]
 
+daily <- aggregate(steps.x ~ date, data = data2, FUN = sum)
+qplot(steps.x, data = daily, geom="histogram", xlab = "Daily number of steps", binwidth = 200)
+daily_mean <- mean(daily$steps.x)
+daily_median <- median(daily$steps.x)
+```
 
+The mean of the total number of steps taken per day is `r format(daily_mean, digits=0,  scientific = FALSE)`  
+The median of the total number of steps taken per day `r format(daily_median, digits=0,  scientific = FALSE)`
+Replacing the NA's with the mean doesn't have influence on the mean, but does have some minor influence on the median.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+Split the data in weekend and week data and make the activity plot again
+```{r}
+data$day <- ifelse(as.numeric(format(data$date, "%u")) >5, "weekend", "week")
+intervals <- aggregate(data$steps, by = list(data$day, data$interval), mean, na.rm = TRUE)
+names(intervals) = c("day", "interval", "steps")
+ggplot(intervals, aes(x = interval, y = steps)) + geom_line() + facet_grid(day~.)
+
+```
+From these plots we can see that the person starts stepping later in teh weekend, and stops sooner during the week. The max number of steps is higer during the week.
+
